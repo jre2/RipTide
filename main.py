@@ -1,6 +1,6 @@
 from tidalapi import *
 username    = 'overture2112@gmail.com'
-password    = 'Seohyun9'
+password    = 'PASSWORD HERE'
 S = None
 
 import gzip as C
