@@ -1,6 +1,6 @@
 JMR_ARTIST_SKIP = 0
-username    = 'overture2112@gmail.com'
-password    = 'Seohyun9'
+username    = ''
+password    = ''
 S = None        # session object
 
 from tidalapi import *
@@ -25,11 +25,11 @@ signal.signal( signal.SIGINT, _sigint_handler )
 FORCE_REDO_ARTIST = False
 FORCE_REDO_ALBUM = False
 
-MUSIC_PATH_BYID = "~/direct/tidal/byId"
-MUSIC_PATH_BYNAME = "~/direct/tidal/byName"
+#MUSIC_PATH_BYID = "~/direct/tidal/byId"
+#MUSIC_PATH_BYNAME = "~/direct/tidal/byName"
 
-#MUSIC_PATH_BYID = '/arc/music/tidal/byId'
-#MUSIC_PATH_BYNAME = '/arc/music/tidal/byName'
+MUSIC_PATH_BYID = '/arc/music/tidal/byId'
+MUSIC_PATH_BYNAME = '/arc/music/tidal/byName'
 
 
 def escape_dict( d ):
@@ -344,11 +344,11 @@ def main():
         d.clear()
         login()
         d.update()
-    if 0:   # Update database incremental
+    if 1:   # Update database incremental
         login()
         d.update()
 
-    if 1:   # Download music
+    if 0:   # Download music
         login()
         d.pullAll()
     if 0:   # Don't download, just fix byName links

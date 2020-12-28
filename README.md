@@ -1,13 +1,15 @@
 # RipTide
 
 ## TODO
-we found a case where request vs delivered quality assert failed
-	figure out how we want to handle those albums
+* we found a case where request vs delivered quality assert failed
+    * figure out how we want to handle those albums
+
+* remove auth details from commit history...
 
 ### Changes to data collection
 * ??? Consider just saving ALL json data from every API pull, in case we change our mind on what to save later, so we don't ever have to redo API requests
     * API requests are presumably the #1 thing to limit to avoid getting banned
-* Track what albums we've downloaded (and maybe when/where) so work can done on different machines (or eventually made parallel) more easily
+* downloaded.db should maybe track when (and from what machine) a track was downloaded for future parallel download/upload support
 
 * Better error handling and recovery from http errors mid update
 * Better way to handle resuming partially updated album, stale database, etc
