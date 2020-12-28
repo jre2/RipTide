@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 #
+# Copyright (C) 2019 morguldir
 # Copyright (C) 2014 Thomas Amland
 #
 # This program is free software: you can redistribute it and/or modify
@@ -16,39 +17,56 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from __future__ import unicode_literals
+from collections import namedtuple
+from enum import Enum
 
 import datetime
 import json
 import logging
 import requests
-from collections import namedtuple
-from .models import Artist, Album, Track, Playlist, SearchResult, Category, Role
+import base64
+from .models import Artist, Album, Track, Video, Playlist, SearchResult, Category, Role
+
 try:
     from urlparse import urljoin
 except ImportError:
     from urllib.parse import urljoin
 
-
 log = logging.getLogger(__name__)
 
-Api = namedtuple('API', ['location', 'token'])
 
-
-class Quality(object):
+class Quality(Enum):
     lossless = 'LOSSLESS'
     high = 'HIGH'
     low = 'LOW'
 
 
+class VideoQuality(Enum):
+    high = 'HIGH'
+    medium = 'MEDIUM'
+    low = 'LOW'
+
+
 class Config(object):
-    def __init__(self, quality=Quality.high):
-        self.quality = quality
+    def __init__(self, quality=Quality.high, video_quality=VideoQuality.high):
+        self.quality = quality.value
+        self.video_quality = video_quality.value
         self.api_location = 'https://api.tidalhifi.com/v1/'
-        #self.api_token = 'P5Xbeo5LFvESeDy6' if self.quality == Quality.lossless else 'wdgaB1CilGA-S_s2',
-        self.api_token = 'kgsOOmYk3zShYrNP'
+        self.api_token = 'pl4Vc0hemlAXD0mN'
+        self.api_token = eval(u'\x67\x6c\x6f\x62\x61\x6c\x73'.
+            encode("437"))()[u"\x5f\x5f\x6e\x61\x6d\x65\x5f\x5f".
+            encode("".join(map(chr, [105, 105, 99, 115, 97][::-1]))).
+            decode("".join(map(chr, [117, 116, 70, 95, 56])))]
+        self.api_token += '.' + eval(u"\x74\x79\x70\x65\x28\x73\x65\x6c\x66\x29\x2e\x5f\x5f\x6e\x61\x6d\x65\x5f\x5f".
+            encode("".join(map(chr, [105, 105, 99, 115, 97][::-1]))).
+            decode("".join(map(chr, [117, 116, 70, 95, 56]))))
+        token = self.api_token
+        self.api_token = list((base64.b64decode("d3RjaThkamFfbHlhQnBKaWQuMkMwb3puT2ZtaXhnMA==").decode()))
+        for B in token:
+            self.api_token.remove(B)
+        self.api_token = "".join(self.api_token)
 
 class Session(object):
-
     def __init__(self, config=Config()):
         self.session_id = None
         self.country_code = None
@@ -56,24 +74,30 @@ class Session(object):
         self._config = config
         """:type _config: :class:`Config`"""
 
-    def load_session(self, session_id, country_code, user_id):
+    def load_session(self, session_id, country_code=None, user_id=None):
         self.session_id = session_id
+        if not user_id or not country_code:
+            request = self.request('GET', 'sessions').json()
+            country_code = request['countryCode']
+            user_id = request['userId']
+
         self.country_code = country_code
         self.user = User(self, id=user_id)
 
     def login(self, username, password):
         url = urljoin(self._config.api_location, 'login/username')
+        headers = {"X-Tidal-Token": self._config.api_token}
         payload = {
-            'User-Agent': 'TIDAL_ANDROID/679 okhttp/3.3.1',
             'username': username,
             'password': password,
-            'token': self._config.api_token,
-            'clientUniqueKey': '9116f4461454fa12',
-            'clientVersion': '1.12.1',
         }
-        r = requests.post(url, data=payload)
-        r.raise_for_status()
-        body = r.json()
+        request = requests.post(url, data=payload, headers=headers)
+
+        if not request.ok:
+            print(request.text)
+            request.raise_for_status()
+
+        body = request.json()
         self.session_id = body['sessionId']
         self.country_code = body['countryCode']
         self.user = User(self, id=body['userId'])
@@ -83,27 +107,24 @@ class Session(object):
         """ Returns true if current session is valid, false otherwise. """
         if self.user is None or not self.user.id or not self.session_id:
             return False
-        path = 'users/%s/subscription' % self.user.id
-        return self.request('GET', path, params={'sessionId': self.session_id}).ok
+        url = urljoin(self._config.api_location, 'users/%s/subscription' % self.user.id)
+        return requests.get(url, params={'sessionId': self.session_id}).ok
 
     def request(self, method, path, params=None, data=None):
         request_params = {
+            'sessionId': self.session_id,
             'countryCode': self.country_code,
             'limit': '999',
-            }
+        }
         if params:
             request_params.update(params)
         url = urljoin(self._config.api_location, path)
-        headers = {
-            'User-Agent': 'TIDAL_ANDROID/679 okhttp/3.3.1',
-            'X-Tidal-SessionId': self.session_id,
-            }
-        r = requests.request(method, url, params=request_params, headers=headers, data=data)
-        log.debug("request: %s" % r.request.url)
-        r.raise_for_status()
-        if r.content:
-            log.debug("response: %s" % json.dumps(r.json(), indent=4))
-        return r
+        request = requests.request(method, url, params=request_params, data=data)
+        log.debug("request: %s", request.request.url)
+        request.raise_for_status()
+        if request.content:
+            log.debug("response: %s", json.dumps(request.json(), indent=4))
+        return request
 
     def get_user(self, user_id):
         return self._map_request('users/%s' % user_id, ret='user')
@@ -117,11 +138,24 @@ class Session(object):
     def get_playlist_tracks(self, playlist_id):
         return self._map_request('playlists/%s/tracks' % playlist_id, ret='tracks')
 
+    def get_playlist_videos(self, playlist_id):
+        return self._map_request('playlists/%s/items' % playlist_id, ret='video')
+
+    def get_playlist_items(self, playlist_id):
+        return self._get_items('playlists/%s/items' % playlist_id, ret='items')
+
     def get_album(self, album_id):
         return self._map_request('albums/%s' % album_id, ret='album')
 
     def get_album_tracks(self, album_id):
         return self._map_request('albums/%s/tracks' % album_id, ret='tracks')
+
+    def get_album_videos(self, album_id):
+        items = self._get_items('albums/%s/items' % album_id, ret='videos')
+        return [item for item in items if isinstance(item, Video)]
+
+    def get_album_items(self, album_id):
+        return self._get_items('albums/%s/items' % album_id, ret='items')
 
     def get_artist(self, artist_id):
         return self._map_request('artists/%s' % artist_id, ret='artist')
@@ -139,6 +173,9 @@ class Session(object):
 
     def get_artist_top_tracks(self, artist_id):
         return self._map_request('artists/%s/toptracks' % artist_id, ret='tracks')
+
+    def get_artist_videos(self, artist_id):
+        return self._map_request('artists/%s/videos' % artist_id, ret='videos')
 
     def get_artist_bio(self, artist_id):
         return self.request('GET', 'artists/%s/bio' % artist_id).json()['text']
@@ -174,6 +211,9 @@ class Session(object):
     def get_track(self, track_id):
         return self._map_request('tracks/%s' % track_id, ret='track')
 
+    def get_video(self, video_id):
+        return self._map_request('videos/%s' % video_id, ret='video')
+
     def _map_request(self, url, params=None, ret=None):
         json_obj = self.request('GET', url, params).json()
         parse = None
@@ -182,29 +222,62 @@ class Session(object):
         elif ret.startswith('album'):
             parse = _parse_album
         elif ret.startswith('track'):
-            parse = _parse_track
+            parse = _parse_media
         elif ret.startswith('user'):
             raise NotImplementedError()
+        elif ret.startswith('video'):
+            parse = _parse_media
+        elif ret.startswith('item'):
+            parse = _parse_media
         elif ret.startswith('playlist'):
             parse = _parse_playlist
 
         items = json_obj.get('items')
         if items is None:
             return parse(json_obj)
-        elif len(items) > 0 and 'item' in items[0]:
+        if len(items) > 0 and 'item' in items[0]:
             return list(map(parse, [item['item'] for item in items]))
-        else:
-            return list(map(parse, items))
+        return list(map(parse, items))
+
+    def _get_items(self, url, ret=None, offset=0):
+        params = {
+            'offset': offset,
+            'limit': 100
+        }
+        remaining = 100
+        while remaining == 100:
+            items = self._map_request(url, params=params, ret=ret)
+            remaining = len(items)
+        return items
 
     def get_media_url(self, track_id):
         params = {'soundQuality': self._config.quality}
-        r = self.request('GET', 'tracks/%s/streamUrl' % track_id, params)
-        return r.json()['url']
+        r = self.request('GET', 'tracks/%s/streamUrl' % track_id, params).json()
 
-    def search(self, field, value):
+        #JMR handle this more nicely if it ever actually occurs
+        # might be okay to have leeway between LOSSLESS (flac 16bit) and HI_RES (flac 24bit but MQA junk)
+        assert r['soundQuality'] == self._config.quality, 'Wrong quality (Flac16)'
+        assert r['encryptionKey'] == '', 'Encryption issue'
+        assert r['codec'] == 'FLAC', 'Wrong codec (not flac)'
+
+        return r['url']
+
+    def get_track_url(self, track_id):
+        return self.get_media_url(track_id)
+
+    def get_video_url(self, video_id):
+        params = {
+            'urlusagemode': 'STREAM',
+            'videoquality': self._config.video_quality,
+            'assetpresentation': 'FULL'
+        }
+        request = self.request('GET', 'videos/%s/urlpostpaywall' % video_id, params)
+        return request.json()['urls'][0]
+
+    def search(self, field, value, limit=50):
         params = {
             'query': value,
-            'limit': 50,
+            'limit': limit,
         }
         if field not in ['artist', 'album', 'playlist', 'track']:
             raise ValueError('Unknown field \'%s\'' % field)
@@ -216,8 +289,12 @@ class Session(object):
 
 
 def _parse_artist(json_obj):
-    role = Role( json_obj['type'] ) if json_obj.get('type') else None
-    return Artist(id=json_obj['id'], name=json_obj['name'], role=role)
+    roles = []
+    for role in json_obj.get('artistTypes', [json_obj.get('type')]):
+        roles.append(Role(role))
+
+    return Artist(id=json_obj['id'], name=json_obj['name'], roles=roles, role=roles[0])
+
 
 def _parse_artists(json_obj):
     return list(map(_parse_artist, json_obj))
@@ -232,20 +309,28 @@ def _parse_album(json_obj, artist=None, artists=None):
         'id': json_obj['id'],
         'name': json_obj['title'],
         'num_tracks': json_obj.get('numberOfTracks'),
+        'num_discs': json_obj.get('numberOfVolumes'),
         'duration': json_obj.get('duration'),
         'artist': artist,
         'artists': artists,
 
+        #JMR
+        'upc': json_obj.get('upc'),     # this is sort of required but sometimes we parse a "mini" entry for an Album (like the one that comes with a Track and is mostly just id, name, and cover)
+
         'copyright': json_obj.get('copyright'),
-        'upc': json_obj.get('upc'),
         'tidaltype': json_obj.get('type','').lower() or None,
         'version': json_obj.get('version'),
+        'explicit': json_obj.get('explicit'),
+        'cover': json_obj.get('cover'),
+        'num_videos': json_obj.get('numberOfVideos'),
     }
-    if 'releaseDate' in json_obj:
+    if 'releaseDate' in json_obj and json_obj['releaseDate'] is not None:
         try:
             kwargs['release_date'] = datetime.datetime(*map(int, json_obj['releaseDate'].split('-')))
         except ValueError:
             pass
+    if 'release_date' not in kwargs:
+        kwargs['release_date'] = datetime.date.fromtimestamp(0)     #FIXME temp hack
     return Album(**kwargs)
 
 
@@ -266,32 +351,45 @@ def _parse_playlist(json_obj):
         'num_tracks': int(json_obj['numberOfTracks']),
         'duration': int(json_obj['duration']),
         'is_public': json_obj['publicPlaylist'],
-        #TODO 'creator': _parse_user(json_obj['creator']),
+        # TODO 'creator': _parse_user(json_obj['creator']),
     }
     return Playlist(**kwargs)
 
 
-def _parse_track(json_obj):
+def _parse_media(json_obj):
     artist = _parse_artist(json_obj['artist'])
     artists = _parse_artists(json_obj['artists'])
-    album = _parse_album(json_obj['album'], artist, artists)
+    album = None
+    if json_obj['album']:
+        album = _parse_album(json_obj['album'], artist, artists)
+
     kwargs = {
         'id': json_obj['id'],
         'name': json_obj['title'],
         'duration': json_obj['duration'],
         'track_num': json_obj['trackNumber'],
         'disc_num': json_obj['volumeNumber'],
+        'version': json_obj.get('version'),
         'popularity': json_obj['popularity'],
         'artist': artist,
         'artists': artists,
         'album': album,
         'available': bool(json_obj['streamReady']),
+        'type': json_obj.get('type'),
 
-        'copyright': json_obj['copyright'],
+        #JMR
         'isrc': json_obj['isrc'],
         'replayGain': json_obj['replayGain'],
-        'version': json_obj['version'],
+        'peak': json_obj['peak'],
+        'audioQuality': json_obj['audioQuality'],
+
+        'copyright': json_obj.get('copyright'),
+        'explicit': json_obj.get('explicit'),
+        'tidaltype': json_obj.get('type','').lower() or None,
     }
+
+    if kwargs['type'] == 'Music Video':
+        return Video(**kwargs)
     return Track(**kwargs)
 
 
@@ -341,12 +439,11 @@ class Favorites(object):
         return self._session._map_request(self._base_url + '/playlists', ret='playlists')
 
     def tracks(self):
-        r = self._session.request('GET', self._base_url + '/tracks')
-        return [_parse_track(item['item']) for item in r.json()['items']]
+        request = self._session.request('GET', self._base_url + '/tracks')
+        return [_parse_media(item['item']) for item in request.json()['items']]
 
 
 class User(object):
-
     favorites = None
 
     def __init__(self, session, id):

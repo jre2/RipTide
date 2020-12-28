@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 #
+# Copyright (C) 2019 morguldir
 # Copyright (C) 2014 Thomas Amland
 #
 # This program is free software: you can redistribute it and/or modify
@@ -29,29 +30,62 @@ class Model(object):
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
-
+#Debug with
+#j=S.request('GET', 'albums/68708433', None ).json(); t = T._parse_album( j )
 class Album(Model):
     artist = None
     artists = []
     num_tracks = -1
     duration = -1
-    release_date = None
+    release_date = None # has YYYY-MM-DD
 
+    #JMR
     copyright = None
     upc = None
-    tidaltype = None
+    tidaltype = None    # ALBUM | ???
     version = None
+    explicit = None
+    num_discs = -1
+    num_videos = -1
+    cover = None        # ex. 24a98c5f-18ac-436c-b99c-ea18cb521724
 
     @property
-    def image(self, width=512, height=512):
+    def image(self, width=1280, height=1280):
+        return IMG_URL.format(width=width, height=height, id=self.id, id_type='albumid')
+
+    def picture(self, width, height):
+        """
+        A url to an album picture
+
+        :param width: pixel width, maximum 2000
+        :type width: int
+        :param height: pixel height, maximum 2000
+        :type height: int
+
+        Original sizes: 80x80, 160x160, 320x320, 640x640 and 1280x1280
+        """
         return IMG_URL.format(width=width, height=height, id=self.id, id_type='albumid')
 
 
 class Artist(Model):
+    roles = []
     role = None
 
     @property
-    def image(self, width=512, height=512):
+    def image(self, width=1280, height=1280):
+        return IMG_URL.format(width=width, height=height, id=self.id, id_type='artistid')
+
+    def picture(self, width, height):
+        """
+        A url to an artist picture
+
+        :param width: pixel width, maximum 2000
+        :type width: int
+        :param height: pixel height, maximum 2000
+        :type height: int
+
+        Original sizes: 80x80, 160x160, 320x320, 480x480, 640x640, 1280x1280
+        """
         return IMG_URL.format(width=width, height=height, id=self.id, id_type='artistid')
 
 
@@ -66,24 +100,51 @@ class Playlist(Model):
     duration = -1
 
     @property
-    def image(self, width=512, height=512):
+    def image(self, width=1080, height=1080):
+        return IMG_URL.format(width=width, height=height, id=self.id, id_type='uuid')
+
+    def picture(self, width, height):
+        """
+        A url to a playlist picture
+
+        :param width: pixel width, maximum 2000
+        :type width: int
+        :param height: pixel height, maximum 2000
+        :type height: int
+
+        Original sizes: 160x160, 320x320, 480x480, 640x640, 750x750, 1080x1080
+
+        """
         return IMG_URL.format(width=width, height=height, id=self.id, id_type='uuid')
 
 
-class Track(Model):
+class Media(Model):
     duration = -1
     track_num = -1
     disc_num = 1
+    version = None
     popularity = -1
     artist = None
     artists = []
     album = None
     available = True
+    type = None
 
+    #JMR
     copyright = None
     isrc = None
     replayGain = None
-    version = None
+    peak = None
+    audioQuality = None
+    explicit = None
+    tidaltype = None
+
+
+class Track(Media):
+    pass
+
+class Video(Media):
+    pass
 
 
 class SearchResult(Model):
@@ -100,3 +161,5 @@ class Category(Model):
 class Role(Enum):
     main = 'MAIN'
     featured = 'FEATURED'
+    contributor = 'CONTRIBUTOR'
+    artist = 'ARTIST'
